@@ -5,6 +5,8 @@ from time import sleep
 import ast
 import sys
 
+
+# if any quantities have ' in them, there will be trouble
 all_odim_quantities = {'TH':     {'unit':'dBZ',        'description':'Logged horizontally-polarized total (uncorrected) reflectivity factor'},
                        'TV':     {'unit':'dBZ',        'description':'Logged vertically-polarized total (uncorrected) reflectivity factor'},
                        'DBZH':   {'unit':'dBZ',        'description':'Logged horizontally-polarized (corrected) reflectivity factor'},
@@ -72,14 +74,14 @@ else:
 
 outfile_f = h5py.File(output_file, 'a')
 outfile_f.create_group(str_time)    ######## Need to add a check really, if a file arrives with the same time as a previous one, currently this will error
-                                    ######## Question is, should it error and quit, or should it check for changes/updates? Maybe a flag is needed
+                                    ######## Question is, should it error and quit, or should it check for changes/updates? Maybe a flag is needed,
                                     ######## for example (sys.argv[3]?), which if present then the previous group for this time should be overwritten.
 
 if 'Conventions' not in outfile_f.attrs.keys():
     outfile_f.attrs['Conventions'] = 'ODIM v of files, ncas-odims/v1_0'
 
-if 'quantities' not in outfile_f.keys():
-    outfile_f.create_group('quantities')
+#if 'quantities' not in outfile_f.keys():
+#    outfile_f.create_group('quantities')
     
 if 'what' not in outfile_f.keys():
     outfile_f.create_group('what')
@@ -97,11 +99,11 @@ if 'how' not in outfile_f.keys():
     outfile_f['how'].attrs['created'] = datetime.datetime.now().strftime('%Y%m%dT%H%M%S')
     outfile_f['how'].attrs['creator_name'] = 'Met Office'
     outfile_f['how'].attrs['creator_email'] = 'enquiries@metoffice.gov.uk'
-    outfile_f['how'].attrs['history'] = 'In eighteen hundred and ninety two Columbus sailed the ocean blue'
+    outfile_f['how'].attrs['history'] = 'In fourteen hundred and ninety two Columbus sailed the ocean blue'
     outfile_f['how'].attrs['institution'] = 'Met Office'
     outfile_f['how'].attrs['licence'] = 'http://artefacts.ceda.ac.uk/licences/specific_licences/nerc-met-office_agreement.pdf'
     outfile_f['how'].attrs['processing_software'] = 'Some super-duper code'
-    outfile_f['how'].attrs['processing_software_version'] = '1.0.0'
+    outfile_f['how'].attrs['processing_software_version'] = '0.1.0'
     outfile_f['how'].attrs['project_principle_investigator'] = 'Met Office'
     outfile_f['how'].attrs['project_principle_investigator_contact'] = 'enquiries@metoffice.gov.uk'
     outfile_f['how'].attrs['references'] = 'Some sort of document that describes life and all we know'
@@ -124,6 +126,16 @@ if 'quantity' in outfile_f['what'].attrs.keys():
 else:
     #quantities = []
     quantities = ''
+    
+only_quantities = quantities.split("':{'")
+for i, q in enumerate(only_quantities):
+    only_quantities[i] = q.split("'")[-1]  # if any quantities have ' in them, this will break
+
+    
+if 'node_details' in outfile_f['how'].attrs.keys():
+    node_details = outfile_f['how'].attrs['node_details'][1:-1]  # [1:-1] to remove {}
+else:
+    node_details = ''
 
     
 if 'startdate' in outfile_f['what'].attrs.keys():
@@ -194,9 +206,11 @@ for key in infile_f.keys():
                         msg = f'Unexpected type for quantities: {type(quantities)}'
                         raise TypeError(msg)
                 '''
-                if new_quantity not in quantities:
+                if new_quantity not in only_quantities:
                     if new_quantity in all_odim_quantities.keys():
-                        quantities += f"'{new_quantity}':{{'unit':{all_odim_quantities[new_quantity]['unit']},'description':{all_odim_quantities[new_quantity]['description']}}},"
+                        quantities += f"'{new_quantity}':{{'unit':{all_odim_quantities[new_quantity]['unit']},'description':'{all_odim_quantities[new_quantity]['description']}'}},"
+                    else:
+                        quantities += f"'{new_quantity}':{{'unit':'unknown','description':'unknown'}},"
                     
                     
 '''
@@ -242,6 +256,7 @@ else:
 
 infile_nodes = infile_f['how'].attrs['nodes']
 infile_nodes_str = infile_nodes.decode()
+infile_nodes_list = infile_nodes_str.split(',')
 
 #print(infile_nodes)
 #print(infile_nodes_str)
@@ -253,6 +268,7 @@ infile_nodes_str = infile_nodes.decode()
 #####################################################################################
 #####################################################################################
 #####################################################################################
+'''
 if 'all_nodes' not in outfile_f.attrs.keys():
     #print('[ ]')
     outfile_f.attrs['all_nodes'] = infile_nodes_str
@@ -270,6 +286,22 @@ else:
     current_nodes_str = ','.join(current_nodes_list)
     #print(current_nodes_str)
     outfile_f.attrs['all_nodes'] = current_nodes_str
+    
+quantities += f"'{new_quantity}':{{'unit':{all_odim_quantities[new_quantity]['unit']},'description':{all_odim_quantities[new_quantity]['description']}}},"
+'''
+
+for infile_node in infile_nodes_list:
+    if infile_node not in node_details:
+        node_details += f"'{infile_node}':{{'identifier_set':{{'identifier_type':'id'}},'site_name':'site_name','lat':'lat', 'lon':'lon', 'height':'antenna height AMSL'}},"
+        #outfile_f['how'].attrs['node_details'][infile_node] = {'identifier_set':{'identifier_type':'id'},'site_name':'site_name','lat':'lat', 'lon':'lon', 'height':'antenna height AMSL'}
+
+if node_details[-1] == ',':
+    node_details = node_details[:-1]
+node_details = f'{{{node_details}}}'
+
+outfile_f['how'].attrs['node_details'] = node_details
+
+
 
 '''    
 if 'LL_lat' not in outfile_f['where'].attrs.keys() and 'LL_lat' in infile_f['where'].attrs.keys():
