@@ -16,6 +16,7 @@ import numpy as np
 from time import sleep
 import ast
 import sys
+import datetime
 
 all_odim_quantities = {'TH':     {'unit':'dBZ',        'description':'Logged horizontally-polarized total (uncorrected) reflectivity factor'},
                        'TV':     {'unit':'dBZ',        'description':'Logged vertically-polarized total (uncorrected) reflectivity factor'},
@@ -68,8 +69,17 @@ output_file = sys.argv[2]
 # read input file
 inputfile_f = h5py.File(inputfile, 'r')
 
+#########################################
+#########################################
+#########################################
+# which radar
+radar_location = 'Unknown'
+#########################################
+#########################################
+#########################################
+
 # sp or lp and file time
-pulse_type = inputfile.split('.')[-2][-2:]
+pulse_type = inputfile.split('.')[-2][-2:]  # dependent on lp or sp being last bit in name before .h5
 file_time = inputfile_f['what'].attrs['time'][:4] #inputfile.split('/')[-1].split('_')[0][-4:]
 
 # data might be written to original file late. To see if a scan should belong in the previous volume,
@@ -132,6 +142,46 @@ print(f"output file: {output_file}")
     
 day_f = h5py.File(f"{output_file}", "a")
 
+
+if 'Conventions' not in day_f.attrs.keys():
+    day_f.attrs['Conventions'] = 'ODIM v of files, ncas-odims/v1_0'
+
+#if 'quantities' not in outfile_f.keys():
+#    outfile_f.create_group('quantities')
+    
+if 'what' not in day_f.keys():
+    day_f.create_group('what')
+    day_f['what'].attrs['title'] = f'{radar_location} Single Site Data'
+    day_f['what'].attrs['product'] = 'SCAN: A scan of polar data'
+    day_f['what'].attrs['object'] = 'PVOL: Polar volume'
+    day_f['what'].attrs['comment'] = 'This is what the file is all about.'
+    
+if 'where' not in day_f.keys():
+    day_f.create_group('where')
+    day_f['where'].attrs['lon'] = inputfile_f['where'].attrs['lon']
+    day_f['where'].attrs['lat'] = inputfile_f['where'].attrs['lat']
+    day_f['where'].attrs['height'] = inputfile_f['where'].attrs['height']
+    day_f['where'].attrs['source_local_grid_easting'] = inputfile_f['where'].attrs['source_local_grid_easting']
+    day_f['where'].attrs['source_local_grid_northing'] = inputfile_f['where'].attrs['source_local_grid_northing'] 
+    
+if 'how' not in day_f.keys():
+    day_f.create_group('how')
+    day_f['how'].attrs['created'] = datetime.datetime.now().strftime('%Y%m%dT%H%M%S')
+    day_f['how'].attrs['creator_name'] = 'Met Office'
+    day_f['how'].attrs['creator_email'] = 'enquiries@metoffice.gov.uk'
+    day_f['how'].attrs['history'] = 'In fourteen hundred and ninety two Columbus sailed the ocean blue'
+    day_f['how'].attrs['institution'] = 'Met Office'
+    day_f['how'].attrs['licence'] = 'http://artefacts.ceda.ac.uk/licences/specific_licences/nerc-met-office_agreement.pdf'
+    day_f['how'].attrs['processing_software'] = 'nimrod_hdf5_aggregator'
+    day_f['how'].attrs['processing_software_version'] = '0.1.2'
+    day_f['how'].attrs['project_principle_investigator'] = 'Met Office'
+    day_f['how'].attrs['project_principle_investigator_contact'] = 'enquiries@metoffice.gov.uk'
+    day_f['how'].attrs['references'] = 'Some sort of document that describes life and all we know'
+else:
+    #edit how history
+    pass
+
+
 # create groups if they don't already exist
 if pulse_group not in day_f.keys():
     day_f.create_group(pulse_group)
@@ -142,28 +192,40 @@ if time_group not in day_f[pulse_group].keys():
         day_f[pulse_group][time_group].attrs['Conventions'] = "ODIM_H5/V2_1"
         day_f[pulse_group][time_group]['what'].attrs['object'] = 'PVOL'
         day_f[pulse_group][time_group]['what'].attrs['source'] = inputfile_f['what'].attrs['source'] 
-if 'variables' not in day_f.keys():
-    day_f.create_group('variables')
+#if 'variables' not in day_f.keys():
+#    day_f.create_group('variables')
 
 # get info currently in aggregate file that might need to be updated
+'''
 if 'quantities' in day_f.attrs.keys():
     quantities = day_f.attrs['quantities']
 else:
     quantities = []
-if 'startdate' in day_f.attrs.keys():
-    curr_startdate = int(day_f.attrs['startdate'])
+'''
+if 'quantity' in day_f['what'].attrs.keys():
+    quantities = f"{day_f['what'].attrs['quantity'][1:-1]},"  # [1:-1] to remove {}, add comma ready for next variable
+else:
+    quantities = ''
+    
+only_quantities = quantities.split("':{'")
+for i, q in enumerate(only_quantities):
+    only_quantities[i] = q.split("'")[-1]  # if any quantities have ' in them, this will break
+    
+    
+if 'startdate' in day_f['what'].attrs.keys():
+    curr_startdate = int(day_f['what'].attrs['startdate'])
 else:
     curr_startdate = 1e35
-if 'enddate' in day_f.attrs.keys():
-    curr_enddate = int(day_f.attrs['enddate'])
+if 'enddate' in day_f['what'].attrs.keys():
+    curr_enddate = int(day_f['what'].attrs['enddate'])
 else:
     curr_enddate = 0
-if 'starttime' in day_f.attrs.keys():
-    curr_starttime = int(day_f.attrs['starttime'])
+if 'starttime' in day_f['what'].attrs.keys():
+    curr_starttime = int(day_f['what'].attrs['starttime'])
 else:
     curr_starttime = 1e35
-if 'endtime' in day_f.attrs.keys():
-    curr_endtime = int(day_f.attrs['endtime'])
+if 'endtime' in day_f['what'].attrs.keys():
+    curr_endtime = int(day_f['what'].attrs['endtime'])
 else:
     curr_endtime = 0
     
@@ -199,22 +261,23 @@ for key in inputfile_f.keys():
         if 'starttime' in inputfile_f[key]['what'].attrs.keys():
             dataset_starttime = int(inputfile_f[key]['what'].attrs['starttime'])
         if (dataset_startdate < curr_startdate) or ((dataset_startdate == curr_startdate) and (dataset_starttime < curr_starttime)):
-            day_f.attrs['startdate'] = inputfile_f[key]['what'].attrs['startdate']
-            day_f.attrs['starttime'] = inputfile_f[key]['what'].attrs['starttime']
+            day_f['what'].attrs['startdate'] = inputfile_f[key]['what'].attrs['startdate']
+            day_f['what'].attrs['starttime'] = inputfile_f[key]['what'].attrs['starttime']
             
         if 'enddate' in inputfile_f[key]['what'].attrs.keys():
             dataset_enddate = int(inputfile_f[key]['what'].attrs['enddate'])
         if 'endtime' in inputfile_f[key]['what'].attrs.keys():
             dataset_endtime = int(inputfile_f[key]['what'].attrs['endtime'])
         if (dataset_enddate > curr_enddate) or ((dataset_enddate == curr_enddate) and (dataset_endtime > curr_endtime)):
-            day_f.attrs['enddate'] = inputfile_f[key]['what'].attrs['enddate']
-            day_f.attrs['endtime'] = inputfile_f[key]['what'].attrs['endtime']
+            day_f['what'].attrs['enddate'] = inputfile_f[key]['what'].attrs['enddate']
+            day_f['what'].attrs['endtime'] = inputfile_f[key]['what'].attrs['endtime']
             
         #find quantities
         for subkey in inputfile_f[key].keys():
             if 'data' in subkey:
                 new_quantity = inputfile_f[key][subkey]['what'].attrs['quantity'].decode()
                 #print(f'new_quantity: {new_quantity}')
+                '''
                 if new_quantity not in quantities:
                     print(f'quantity type: {type(quantities)}')
                     try:
@@ -237,18 +300,21 @@ for key in inputfile_f.keys():
                     else:
                         msg = f'Unexpected type for quantities: {type(quantities)}'
                         raise TypeError(msg)
+                '''
+                if new_quantity not in only_quantities:
+                    if new_quantity in all_odim_quantities.keys():
+                        quantities += f"'{new_quantity}':{{'unit':{all_odim_quantities[new_quantity]['unit']},'description':'{all_odim_quantities[new_quantity]['description']}'}},"
+                    else:
+                        quantities += f"'{new_quantity}':{{'unit':'unknown','description':'unknown'}},"
     
 
-day_f.attrs['quantities'] = quantities
+#day_f.attrs['quantities'] = quantities
+if quantities[-1] == ',':
+    quantities = quantities[:-1]
+quantities = f'{{{quantities}}}'
 
+day_f['what'].attrs['quantity'] = quantities
 
-# FILE: lat/lon/height location of radar (assume the radar doesn't move during the day)
-if 'lon' not in day_f.attrs.keys():
-    day_f.attrs['lon'] = inputfile_f['where'].attrs['lon']
-if 'lat' not in day_f.attrs.keys():
-    day_f.attrs['lat'] = inputfile_f['where'].attrs['lat']
-if 'height' not in day_f.attrs.keys():
-    day_f.attrs['height'] = inputfile_f['where'].attrs['height']
     
 
 # VOLUME SPECIFIC, ODIM: copy some attributes over if not present (these ones should be the same for all sp, all lp) 
@@ -290,6 +356,7 @@ else:
 inputfile_f.close()
 
 # close the file
+day_f['how'].attrs['last_revised_date'] = datetime.datetime.now().strftime('%Y%m%dT%H%M%S')
 day_f.close()
 
 # I think sometimes the code moves on too quickly, so we get to the next opening of file 
