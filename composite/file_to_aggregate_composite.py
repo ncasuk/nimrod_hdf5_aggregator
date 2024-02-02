@@ -70,9 +70,10 @@ def file_to_aggregate(input_file, output_file):
         str_time = str(time)
 
     outfile_f = h5py.File(output_file, 'a')
-    outfile_f.create_group(str_time)    ######## Need to add a check really, if a file arrives with the same time as a previous one, currently this will error
-                                        ######## Question is, should it error and quit, or should it check for changes/updates? Maybe a flag is needed,
-                                        ######## for example (sys.argv[3]?), which if present then the previous group for this time should be overwritten.
+    try:
+        outfile_f.create_group(str_time)
+    except ValueError:
+        pass
 
     if 'Conventions' not in outfile_f.attrs.keys():
         outfile_f.attrs['Conventions'] = 'ODIM v of files, ncas-odims/v1_0'
@@ -107,7 +108,10 @@ def file_to_aggregate(input_file, output_file):
         
 
     for group in infile_f.keys():
-        infile_f.copy(f'{group}', outfile_f[str_time])
+        try:
+            infile_f.copy(f'{group}', outfile_f[str_time])
+        except RuntimeError:
+            pass
         
         
     outfile_f[str_time].attrs['original_filename'] = input_file.split('/')[-1]
