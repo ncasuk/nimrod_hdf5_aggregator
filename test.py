@@ -26,6 +26,8 @@ for root, dirs, files in os.walk(fileDir):
             yearly_files[year].append(file)
 
 # TODO: rename variable name when done
+            
+# set difference?
 
 for date, files in yearly_files.items():
     files_to_remove = []
@@ -33,17 +35,20 @@ for date, files in yearly_files.items():
     composite_file_name = os.path.join(os.path.dirname(processingDir), date + '_ODIM_ng_radar_rainrate_composite_1km_UK.h5')
     readyToIngest_path = composite_file_name.replace('quarantine', 'readyToIngest')
     dummyArchive_path = dummyArchive + '\\' + date + '_ODIM_ng_radar_rainrate_composite_1km_UK'
-    for file in files:
-        time = file[8:12]
-        temporary_aggregate_name = os.path.dirname(composite_file_name) + '\\_localcopy' + os.path.basename(composite_file_name)
-        if os.path.exists(temporary_aggregate_name):
-            with h5py.File(temporary_aggregate_name, 'r') as f:
-                if time in f:
-                    pass
+    temporary_aggregate_name = os.path.dirname(composite_file_name) + '\\_localcopy' + os.path.basename(composite_file_name)
+
+    if os.path.exists(temporary_aggregate_name):
+        with h5py.File(temporary_aggregate_name, 'r') as f:
+            groups = f.keys()
+            for file in files:
+                time = file[8:12]
+                if time in groups:
+                        pass
                 else:
                     file_to_aggregate_composite.file_to_aggregate(file, temp_filename_out)
                     files_to_remove.append(file)
-        else:
+    else:
+        for file in files:
             file_to_aggregate_composite.file_to_aggregate(file, temp_filename_out)
             files_to_remove.append(file)
 
@@ -56,12 +61,6 @@ for date, files in yearly_files.items():
         shutil.copy2(readyToIngest_path, temporary_aggregate_name)
     elif os.path.exists(dummyArchive_path):
         shutil.copy2(dummyArchive_path, temporary_aggregate_name)
-    # with h5py.File(temporary_aggregate_name, 'a') as temp_file, h5py.File(composite_file_name, 'r') as comp_file:
-    #     common_groups = set(temp_file.keys()).intersection(comp_file.keys())
-    #     print(common_groups)
-    #     for group in common_groups:
-    #         del temp_file[group]
-    #     print(temp_file.keys())
 
     combined_aggregates.combined(temp_filename_out, composite_file_name)
     if not os.path.exists(temporary_aggregate_name):
