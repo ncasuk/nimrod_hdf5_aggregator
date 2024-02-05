@@ -12,6 +12,9 @@ expression = '(?P<year>[0-9]{4})(?P<month>[0-9]{2})(?P<day>[0-9]{2})(?P<hour>[0-
 pattern = '(?P<year>[0-9]{4})(?P<month>[0-9]{2})(?P<day>[0-9]{2})_ODIM_ng_radar_rainrate_composite_1km_UK.h5$'
 dummyArchive = 'C:\\Users\\fdq63749\\Desktop\\badc\\ukmo-nimrod-hdf5\\composite\\uk-1km'
 
+
+dummy = True
+
 yearly_files = {}
 for root, dirs, files in os.walk(fileDir):
     for file in files:
@@ -24,73 +27,47 @@ for root, dirs, files in os.walk(fileDir):
 
 # TODO: rename variable name when done
 
-for year, files in yearly_files.items():
-    temp_filename_out = os.path.join(os.path.dirname(processingDir), 'temp_' + year + '.h5')
-    for file in files:
-        file_to_aggregate_composite.file_to_aggregate(file, temp_filename_out)
-        # os.remove(file)
-    composite_file_name = os.path.join(os.path.dirname(processingDir), year + '_ODIM_ng_radar_rainrate_composite_1km_UK.h5')
+for date, files in yearly_files.items():
+    files_to_remove = []
+    temp_filename_out = os.path.join(os.path.dirname(processingDir), 'temp_' + date + '.h5')
+    composite_file_name = os.path.join(os.path.dirname(processingDir), date + '_ODIM_ng_radar_rainrate_composite_1km_UK.h5')
     readyToIngest_path = composite_file_name.replace('quarantine', 'readyToIngest')
-    dummyArchive_path = dummyArchive + '\\' + year + '_ODIM_ng_radar_rainrate_composite_1km_UK'
+    dummyArchive_path = dummyArchive + '\\' + date + '_ODIM_ng_radar_rainrate_composite_1km_UK'
+    for file in files:
+        time = file[8:12]
+        temporary_aggregate_name = os.path.dirname(composite_file_name) + '\\_localcopy' + os.path.basename(composite_file_name)
+        if os.path.exists(temporary_aggregate_name):
+            with h5py.File(temporary_aggregate_name, 'r') as f:
+                if time in f:
+                    pass
+                else:
+                    file_to_aggregate_composite.file_to_aggregate(file, temp_filename_out)
+                    files_to_remove.append(file)
+        else:
+            file_to_aggregate_composite.file_to_aggregate(file, temp_filename_out)
+            files_to_remove.append(file)
+
     if os.path.exists(composite_file_name):
-        combined_aggregates.combined(temp_filename_out, composite_file_name, "C:\\Users\\fdq63749\\Desktop\\quarantine\\test.h5")
+        try:
+            shutil.copy2(composite_file_name,  temporary_aggregate_name)
+        except Exception as e:
+            print(f"Error copying {composite_file_name} to {temporary_aggregate_name}: {e}")
     elif os.path.exists(readyToIngest_path):
-        combined_aggregates.combined(temp_filename_out, readyToIngest_path)
+        shutil.copy2(readyToIngest_path, temporary_aggregate_name)
     elif os.path.exists(dummyArchive_path):
-        combined_aggregates.combined(temp_filename_out, dummyArchive_path)
-    else:
-        combined_aggregates.combined(temp_filename_out, composite_file_name, "C:\\Users\\fdq63749\\Desktop\\quarantine\\test.h5")
+        shutil.copy2(dummyArchive_path, temporary_aggregate_name)
+    # with h5py.File(temporary_aggregate_name, 'a') as temp_file, h5py.File(composite_file_name, 'r') as comp_file:
+    #     common_groups = set(temp_file.keys()).intersection(comp_file.keys())
+    #     print(common_groups)
+    #     for group in common_groups:
+    #         del temp_file[group]
+    #     print(temp_file.keys())
 
-# for year, files in yearly_files.items():
-#     for file in files:
-#         year_date_time = file[:8]
-#         composite_file_name = processingDir + year_date_time + '_ODIM_ng_radar_rainrate_composite_1km_UK.h5'
-#         readyToIngest_path = composite_file_name.replace('quarantine', 'readyToIngest')
-#         dummyArchive_path = dummyArchive + '\\' + year_date_time + '_ODIM_ng_radar_rainrate_composite_1km_UK.h5'
-#         if os.path.exists(composite_file_name):
-#             temp_filename_out = os.path.join(os.path.dirname(composite_file_name), 'temp_' + os.path.basename(composite_file_name))
-#             shutil.copy2(composite_file_name, temp_filename_out)        
-#             file_to_aggregate_composite.file_to_aggregate(file, composite_file_name)
-#             os.remove(file)
-#         elif os.path.exists(readyToIngest_path):
-#             temp_filename_out = os.path.join(os.path.dirname(readyToIngest_path), 'temp_' + os.path.basename(composite_file_name))
-#             shutil.copy2(readyToIngest_path, temp_filename_out)
-#             file_to_aggregate_composite.file_to_aggregate(file, readyToIngest_path)
-#             os.remove(file)
-#         elif os.path.exists(dummyArchive_path):
-#             temp_filename_out = os.path.join(os.path.dirname(dummyArchive_path), 'temp_' + os.path.basename(composite_file_name))
-#             shutil.copy2(dummyArchive_path, temp_filename_out)
-#             file_to_aggregate_composite.file_to_aggregate(file, dummyArchive_path)
-#             os.remove(file)
-#         else:
-#             file_to_aggregate_composite.file_to_aggregate(file, composite_file_name)
-#             os.remove(file)
+    combined_aggregates.combined(temp_filename_out, composite_file_name)
+    if not os.path.exists(temporary_aggregate_name):
+        shutil.copy2(composite_file_name, temporary_aggregate_name)
+    if not dummy:     
+        for file in files_to_remove:
+            os.remove(file)
+        
 
-
-
-# for year, files in yearly_files:
-#     for h5file in files:
-#         file = fileDir + h5file
-#         year_date_time = h5file[:8]
-#         compositefile = processingDir + year_date_time + '_ODIM_ng_radar_rainrate_composite_1km_UK.h5'
-
-#         # Get a temporary output filename
-#         temp_filename_out = os.path.join(os.path.dirname(compositefile), 'temp_' + os.path.basename(compositefile))
-
-#         if os.path.exists(compositefile):
-#             # Copy the composite file to the temporary output filename
-#             file_to_aggregate_composite.file_to_aggregate(file, compositefile)
-#             shutil.copy2(compositefile, temp_filename_out)
-#         else:
-#             readyToIngest_path = compositefile.replace('quarantine', 'readyToIngest')
-#             if os.path.exists(readyToIngest_path):
-#                 # Copy the file from the 'readyToIngest' area to the temporary output filename
-#                 shutil.copy2(readyToIngest_path, temp_filename_out)
-#                 file_to_aggregate_composite.file_to_aggregate(file, readyToIngest_path)
-#             else:
-#                 dummyArchive_path = dummyArchive + '\\' + year_date_time + '_ODIM_ng_radar_rainrate_composite_1km_UK.h5'
-#                 if os.path.exists(dummyArchive_path):
-#                     # Copy the file from the dummy archive to the temporary output filename
-#                     shutil.copy2(dummyArchive_path, temp_filename_out)
-#                     file_to_aggregate_composite.file_to_aggregate(file, dummyArchive_path)
-#         # Continue with your processing... may have misunderstood WHERE to do this, go back over with graham but does what we want
