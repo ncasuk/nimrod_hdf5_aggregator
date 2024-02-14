@@ -70,10 +70,7 @@ def file_to_aggregate(input_file, output_file):
         str_time = str(time)
 
     outfile_f = h5py.File(output_file, 'a')
-    try:
-        outfile_f.create_group(str_time)
-    except ValueError:
-        pass
+    outfile_f.create_group(str_time)
 
     if 'Conventions' not in outfile_f.attrs.keys():
         outfile_f.attrs['Conventions'] = 'ODIM v of files, ncas-odims/v1_0'

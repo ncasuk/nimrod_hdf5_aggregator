@@ -1,6 +1,6 @@
 import h5py
 import os
-
+import shutil
 
 def combined(f1, f2):
 
@@ -18,8 +18,8 @@ def combined(f1, f2):
         return
 
     # Open the input files
-    with h5py.File(f1, 'r') as file1, h5py.File(f2, 'a') as file2:
-
+    with h5py.File(f1, 'r') as file1, h5py.File(f2, 'a') as file2:  
+        
         # Copy the datasets from file1 to file2
         for group in file1.keys():
             if group not in file2:
